@@ -1,8 +1,15 @@
-> **This is a personal fork of [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)** with a focus on improved fonts and minimal reading stats.
+#UNDER CONSTRUCTION
+##Disclaimer: I am not an expect in C, so I had Antigravity help me with the few changes I made. I only have an X3 device so I cannot confirm it works on other devices, but it should. 
+
+> **This is a personal fork of [CrossInk](https://github.com/uxjulia/crossink)** which is based on [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)
 
 ## What's different in this fork
 
-My goal with this fork was to maintain the core Crosspoint firmware while integrating my preferred typography and some lightweight reading statistics. I’ve focused on keeping the underlying system stable while layering in a few "nice-to-have" features and UI refinements along the way.
+Because I liked the changes from uxjulia, I mostly wanted to mess with the koreader sync engine. I admit it's pretty personal because I use Anx Reader for their cross-platform sync of reading, stats, highlights and annotations. I wanted to simplify my reading progress sync and Anx-Calibre-Manager has a koreader endpoint though it's API calls were different. 
+
+Before this modification, I had koreader app on my phone set to sync to both the official koreader sync endpoint and to my anx-calibre-manager koreader endpoint and I basically had to make sure it sycned to both whenever I switched devices and it got old fast. Anx-Calibre-Manager provides a koreader plugin you can install on devices that run it, but beccause these XTEINK devices are so underpowered they really just run the sync server and there was no way to load the plugin itself. And here we are. I don't plan to make any changes beyond this at this time, but for those of you that do use the same system feel free to take it and let me know if there are problems. 
+
+##Everything below this line is originally from uxjulia and their work!
 
 <table>
   <tr>
