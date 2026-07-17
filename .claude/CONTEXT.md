@@ -33,3 +33,7 @@ Keep this file focused on repo-specific gotchas that are worth reusing in future
 - **EPUB Metadata Modding:** Calibre's "Send to Device" modifies EPUB files on-the-fly (covers, series, IDs), causing size/MD5 mismatches with raw filesystem copies. Always pull from the Calibre OPDS server or copy directly from the destination WebDAV folder to ensure identical hashes.
 - **Cross-Subnet Discovery:** The wireless device plugin uses UDP/mDNS on startup. If Calibre is on a different subnet, set the Host IP manually in *Customize plugin* and **restart Calibre** to trigger connection.
 
+## Rebranding & Build Environments
+- **CrossAnx Branding:** The project is rebranded from `CrossInk` to `CrossAnx`. Source macros use `CROSSANX_VERSION` instead of `CROSSINK_VERSION`. i18n translation key `STR_CROSSINK` translates to `"CrossAnx"`.
+- **Required Environments:** Always compile both the `tiny` and `xlarge` environments: `pio run -e tiny -e xlarge`.
+
