@@ -451,6 +451,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
 
   if (httpCode == 200 || httpCode == 202) return OK;
   if (httpCode == 401) return AUTH_FAILED;
+  if (httpCode == 404) return DOCUMENT_NOT_FOUND;
   if (httpCode < 0) return NETWORK_ERROR;
   return SERVER_ERROR;
 #else
@@ -484,6 +485,98 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
   if (err != ESP_OK) return NETWORK_ERROR;
   if (httpCode == 200 || httpCode == 202) return OK;
   if (httpCode == 401) return AUTH_FAILED;
+  if (httpCode == 404) return DOCUMENT_NOT_FOUND;
+  return SERVER_ERROR;
+#endif
+}
+
+KOReaderSyncClient::Error KOReaderSyncClient::updateReadingTime(const std::string& documentHash,
+                                                                uint32_t readingTimeSeconds, const std::string& date) {
+  lastHttpCode = 0;
+  lastTransportError = 0;
+  if (!KOREADER_STORE.hasCredentials()) {
+    LOG_DBG("KOSync", "No credentials configured");
+    return NO_CREDENTIALS;
+  }
+
+  std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/reading_time";
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  LOG_DBG("KOSync", "Updating reading time: %s (heap: %u)", url.c_str(), (unsigned)freeHeap);
+  if (freeHeap < MIN_HEAP_FOR_TLS) {
+    LOG_ERR("KOSync", "Insufficient heap for TLS handshake: %u bytes free (need %u)", freeHeap, MIN_HEAP_FOR_TLS);
+    return LOW_MEMORY;
+  }
+
+  // Build JSON body
+  JsonDocument doc;
+  doc["document"] = documentHash;
+  doc["reading_time"] = readingTimeSeconds;
+  doc["date"] = date;
+
+  std::string body;
+  serializeJson(doc, body);
+
+  LOG_DBG("KOSync", "Request body: %s", body.c_str());
+
+#ifdef SIMULATOR
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  WiFiClient plainClient;
+
+  if (isHttpsUrl(url)) {
+    secureClient.reset(new WiFiClientSecure);
+    secureClient->setInsecure();
+    http.begin(*secureClient, url.c_str());
+  } else {
+    http.begin(plainClient, url.c_str());
+  }
+  addAuthHeaders(http);
+  http.addHeader("Content-Type", "application/json");
+
+  const int httpCode = http.PUT(body.c_str());
+  lastHttpCode = httpCode;
+  lastTransportError = (httpCode < 0) ? httpCode : 0;
+  http.end();
+
+  LOG_DBG("KOSync", "Update reading time response: %d", httpCode);
+
+  if (httpCode == 200 || httpCode == 202) return OK;
+  if (httpCode == 401) return AUTH_FAILED;
+  if (httpCode == 404) return DOCUMENT_NOT_FOUND;
+  if (httpCode < 0) return NETWORK_ERROR;
+  return SERVER_ERROR;
+#else
+  ResponseBuffer buf;
+  logHeapStats("Before put client", url.c_str());
+  esp_http_client_handle_t client = createClient(url.c_str(), &buf, HTTP_METHOD_PUT);
+  if (!client) {
+    lastTransportError = ESP_ERR_NO_MEM;
+    return NETWORK_ERROR;
+  }
+
+  if (esp_http_client_set_header(client, "Content-Type", "application/json") != ESP_OK ||
+      esp_http_client_set_post_field(client, body.c_str(), body.length()) != ESP_OK) {
+    LOG_ERR("KOSync", "Failed to set request body");
+    lastTransportError = ESP_ERR_INVALID_STATE;
+    esp_http_client_cleanup(client);
+    return NETWORK_ERROR;
+  }
+
+  LOG_DBG("KOSync", "PUT body bytes=%u", static_cast<unsigned>(body.length()));
+  logHeapStats("Before put perform");
+  esp_err_t err = esp_http_client_perform(client);
+  const int httpCode = esp_http_client_get_status_code(client);
+  lastHttpCode = httpCode;
+  lastTransportError = static_cast<int>(err);
+  logHeapStats("After put perform");
+  esp_http_client_cleanup(client);
+
+  LOG_DBG("KOSync", "Update reading time response: %d (err: %d)", httpCode, err);
+
+  if (err != ESP_OK) return NETWORK_ERROR;
+  if (httpCode == 200 || httpCode == 202) return OK;
+  if (httpCode == 401) return AUTH_FAILED;
+  if (httpCode == 404) return DOCUMENT_NOT_FOUND;
   return SERVER_ERROR;
 #endif
 }
@@ -510,6 +603,8 @@ std::string KOReaderSyncClient::errorString(Error error) {
       return tr(STR_KOREADER_SYNC_BAD_RESPONSE);
     case LOW_MEMORY:
       return tr(STR_KOREADER_SYNC_LOW_MEMORY);
+    case DOCUMENT_NOT_FOUND:
+      return formatHttpStatusMessage(404);
     default:
       return tr(STR_UNKNOWN_ERROR);
   }

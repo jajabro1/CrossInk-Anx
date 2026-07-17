@@ -38,7 +38,8 @@ class KOReaderSyncClient {
     JSON_ERROR,
     NOT_FOUND,
     INVALID_AUTH_RESPONSE,
-    LOW_MEMORY
+    LOW_MEMORY,
+    DOCUMENT_NOT_FOUND
   };
 
   /**
@@ -61,6 +62,15 @@ class KOReaderSyncClient {
    * @return OK on success, error code on failure
    */
   static Error updateProgress(const KOReaderProgress& progress);
+
+  /**
+   * Update reading time for a document.
+   * @param documentHash The document hash (from KOReaderDocumentId)
+   * @param readingTimeSeconds The reading duration in seconds to add
+   * @param date The date of the reading session in YYYY-MM-DD format
+   * @return OK on success, error code on failure
+   */
+  static Error updateReadingTime(const std::string& documentHash, uint32_t readingTimeSeconds, const std::string& date);
 
   /**
    * Get human-readable error message.

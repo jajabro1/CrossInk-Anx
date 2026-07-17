@@ -10,6 +10,7 @@
 
 ### Changed
 
+- KOReader Sync now synchronizes reading time duration with compatible self-hosted servers (like Calibre-Web or ANX Calibre Manager) alongside book progress.
 - Large EPUBs, SD-card font-heavy books, and cover thumbnails now open, index, and generate more reliably under low-memory conditions.
 - Home and sleep screens now load more cover and thumbnail data only when needed, reducing reader startup work and reusing cached cover data where possible.
 - Built-in reader font choices have been reduced to Lexend Deca and Bitter, reducing firmware size while keeping fallback glyph coverage.

@@ -1,5 +1,6 @@
 #include "KOReaderSyncActivity.h"
 
+#include <ArduinoJson.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -10,7 +11,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <ctime>
 
+#include "BookReadingStats.h"
 #include "CrossPointSettings.h"
 #include "Epub/Section.h"
 #include "EpubReaderUtils.h"
@@ -303,6 +306,36 @@ void KOReaderSyncActivity::performUpload() {
     return;
   }
 
+  uint32_t diffReadingSeconds = 0;
+  uint32_t totalReadingSeconds = 0;
+  std::string syncStatusPath;
+  if (epub) {
+    const std::string epubCachePath = epub->getCachePath();
+    syncStatusPath = epubCachePath + "/sync_status.json";
+
+    // Load current stats
+    BookReadingStats stats = BookReadingStats::load(epubCachePath);
+    totalReadingSeconds = stats.totalReadingSeconds;
+
+    // Load last synced stats
+    uint32_t lastSyncedSeconds = 0;
+    if (Storage.exists(syncStatusPath.c_str())) {
+      FsFile f;
+      if (Storage.openFileForRead("KOSync", syncStatusPath, f)) {
+        JsonDocument doc;
+        DeserializationError jsonErr = deserializeJson(doc, f);
+        if (!jsonErr) {
+          lastSyncedSeconds = doc["last_synced_reading_seconds"] | 0;
+        }
+        f.close();
+      }
+    }
+
+    if (totalReadingSeconds > lastSyncedSeconds) {
+      diffReadingSeconds = totalReadingSeconds - lastSyncedSeconds;
+    }
+  }
+
   if (epub) {
     epub.reset();
     LOG_DBG("KOSync", "Released epub before upload (heap: %u)", (unsigned)ESP.getFreeHeap());
@@ -316,6 +349,33 @@ void KOReaderSyncActivity::performUpload() {
   progress.device = SETTINGS.getEffectiveDeviceName();
 
   const auto result = KOReaderSyncClient::updateProgress(progress);
+
+  // If progress upload succeeded and there's new reading time, sync reading time
+  if (result == KOReaderSyncClient::OK && diffReadingSeconds > 0) {
+    time_t now = time(nullptr);
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    char dateBuf[16];
+    strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d", &timeinfo);
+    std::string dateStr(dateBuf);
+
+    LOG_DBG("KOSync", "Syncing reading time: diff=%u secs, date=%s", diffReadingSeconds, dateStr.c_str());
+    KOReaderSyncClient::Error timeResult =
+        KOReaderSyncClient::updateReadingTime(documentHash, diffReadingSeconds, dateStr);
+    if (timeResult == KOReaderSyncClient::OK) {
+      LOG_DBG("KOSync", "Reading time synced successfully");
+      // Save the new last synced reading seconds
+      FsFile f;
+      if (Storage.openFileForWrite("KOSync", syncStatusPath, f)) {
+        JsonDocument doc;
+        doc["last_synced_reading_seconds"] = totalReadingSeconds;
+        serializeJson(doc, f);
+        f.close();
+      }
+    } else {
+      LOG_ERR("KOSync", "Reading time sync failed: %d", timeResult);
+    }
+  }
 
   // Drop the radio while user reads the result; full teardown happens at silent reboot.
   wifiOff();
